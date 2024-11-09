@@ -80,22 +80,24 @@ class ParkingLot {
 
     public void carArrives(Car car) { // 20220027
         System.out.printf("Car %d from Gate %d arrived at time %d%n", car.getCarId(), car.getGateId(), car.getArrivalTime());
-        if (parkingSlots.tryAcquire()) {
-            totalServedCars++;
-            servedCarsPerGate.put(car.getGateId(), servedCarsPerGate.getOrDefault(car.getGateId(), 0) + 1);
-            System.out.printf("Car %d from Gate %d parked. (Parking Status: %d spots occupied)%n", car.getCarId(), car.getGateId(), getOccupiedSpots());
-            car.park();
-        } else {
-            waitingQueue.add(car);
-            System.out.printf("Car %d from Gate %d waiting for a spot.%n", car.getCarId(), car.getGateId());
-        }
+        // synchronized (this) {
+            if (parkingSlots.tryAcquire()) {
+                totalServedCars++;
+                servedCarsPerGate.put(car.getGateId(), servedCarsPerGate.getOrDefault(car.getGateId(), 0) + 1);
+                System.out.printf("Car %d from Gate %d parked. (Parking Status: %d spots occupied)%n", car.getCarId(), car.getGateId(), getOccupiedSpots());
+                car.park();
+            } else {
+                waitingQueue.add(car);
+                System.out.printf("Car %d from Gate %d waiting for a spot.%n", car.getCarId(), car.getGateId());
+            }
+        // }
     }
 
     public void carLeaves(Car car) { // 20220027
         parkingSlots.release();
         System.out.printf("Car %d from Gate %d left after %d units of time. (Parking Status: %d spots occupied)%n", car.getCarId(), car.getGateId(), car.getParkingDuration(), getOccupiedSpots());
 
-        synchronized (this) {
+        // synchronized (this) {
             if (!waitingQueue.isEmpty()) {
                 Car nextCar = waitingQueue.poll();
                 try {
@@ -108,7 +110,7 @@ class ParkingLot {
                     e.printStackTrace();
                 }
             }
-        }
+        // }
     }
 
     public void reportStatistics() {
