@@ -17,12 +17,29 @@ class ParkingLot {
         this.totalServedCars = 0;
     }
 
-    public synchronized void carArrives(Car car) {
-
+    public synchronized void carArrives(Car car) { // 20220027
+        System.out.println("Car " + car.getCarId() + " from Gate " + car.getGateId() + " arrived at time " + car.getArrivalTime());
+        
+        if (parkingSlots.tryAcquire()) {
+            car.park();
+            totalServedCars++;
+            servedCarsPerGate.put(car.getGateId(), servedCarsPerGate.getOrDefault(car.getGateId(), 0) + 1);
+        } else {
+            waitingQueue.add(car);
+            System.out.println("Car " + car.getCarId() + " from Gate " + car.getGateId() + " waiting for a spot.");
+        }
     }
 
-    public synchronized void carLeaves(Car car) {
-
+    public synchronized void carLeaves(Car car) { // 20220027
+        parkingSlots.release();
+        System.out.println("Car " + car.getCarId() + " from Gate " + car.getGateId() + " left after " + car.getParkingTime() + " units of time. (Parking Status: " + (totalSlots - parkingSlots.availablePermits()) + " spots occupied)");
+        
+        if (!waitingQueue.isEmpty()) {
+            Car nextCar = waitingQueue.poll();
+            nextCar.parkAfterWaiting();
+            totalServedCars++;
+            servedCarsPerGate.put(nextCar.getGateId(), servedCarsPerGate.getOrDefault(nextCar.getGateId(), 0) + 1);
+        }
     }
 
     public synchronized void reportStatistics() {
