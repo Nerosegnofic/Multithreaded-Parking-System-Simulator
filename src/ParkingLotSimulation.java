@@ -3,62 +3,13 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.lang.InterruptedException;
 
-class ParkingLot {
-    final Semaphore parkingSlots;
-    final Queue<Car> waitingQueue;
-    public final int totalSlots;
-    private final Map<Integer, Integer> servedCarsPerGate;
-    private int totalServedCars;
-    public ParkingLot(int totalSlots) {
-        this.parkingSlots = new Semaphore(totalSlots, true);
-        this.waitingQueue = new LinkedList<>();
-        this.totalSlots = totalSlots;
-        this.servedCarsPerGate = new HashMap<>();
-        this.totalServedCars = 0;
-    }
-
-    public synchronized void carArrives(Car car) { // 20220027
-        System.out.println("Car " + car.getCarId() + " from Gate " + car.getGateId() + " arrived at time " + car.getArrivalTime());
-        
-        if (parkingSlots.tryAcquire()) {
-            car.park();
-            totalServedCars++;
-            servedCarsPerGate.put(car.getGateId(), servedCarsPerGate.getOrDefault(car.getGateId(), 0) + 1);
-        } else {
-            waitingQueue.add(car);
-            System.out.println("Car " + car.getCarId() + " from Gate " + car.getGateId() + " waiting for a spot.");
-        }
-    }
-
-    public synchronized void carLeaves(Car car) { // 20220027
-        parkingSlots.release();
-        System.out.println("Car " + car.getCarId() + " from Gate " + car.getGateId() + " left after " + car.getParkingTime() + " units of time. (Parking Status: " + (totalSlots - parkingSlots.availablePermits()) + " spots occupied)");
-        
-        if (!waitingQueue.isEmpty()) {
-            Car nextCar = waitingQueue.poll();
-            nextCar.parkAfterWaiting();
-            totalServedCars++;
-            servedCarsPerGate.put(nextCar.getGateId(), servedCarsPerGate.getOrDefault(nextCar.getGateId(), 0) + 1);
-        }
-    }
-
-    public synchronized void reportStatistics() {
-        System.out.println("Total Cars Served: " + totalServedCars);
-        System.out.println("Current Cars in Parking: " + (totalSlots - parkingSlots.availablePermits()));
-        System.out.println("Details:");
-        for (Map.Entry<Integer, Integer> entry : servedCarsPerGate.entrySet()) {
-            System.out.println("- Gate " + entry.getKey() + " served " + entry.getValue() + " cars.");
-        }
-    }
-}
-
 class Car extends Thread {
     private final int carId;
     private final int gateId;
     private final int arrivalTime;
     private final int parkingDuration;
+    private final ParkingLot parkingLot;
     private int waitingTime;
-    private ParkingLot parkingLot;
 
     public Car(int carId, int gateId, int arrivalTime, int parkingDuration, ParkingLot parkingLot) {
         this.carId = carId;
@@ -97,12 +48,74 @@ class Car extends Thread {
 
     }
 
-    public int getParkingTime() {
+    public int getParkingDuration() {
         return parkingDuration;
     }
 
     public int getWaitingTime() {
         return waitingTime;
+    }
+}
+
+class ParkingLot {
+    final Semaphore parkingSlots;
+    final Queue<Car> waitingQueue;
+    public final int totalSlots;
+    private final Map<Integer, Integer> servedCarsPerGate;
+    private int totalServedCars;
+    public ParkingLot(int totalSlots) {
+        this.parkingSlots = new Semaphore(totalSlots, true);
+        this.waitingQueue = new LinkedList<>();
+        this.totalSlots = totalSlots;
+        this.servedCarsPerGate = new HashMap<>();
+        this.totalServedCars = 0;
+    }
+
+    public int getOccupiedSpots() {
+        return totalSlots - parkingSlots.availablePermits();
+    }
+
+    public void carArrives(Car car) { // 20220027
+        System.out.printf("Car %d from Gate %d arrived at time %d%n", car.getCarId(), car.getGateId(), car.getArrivalTime());
+
+        synchronized (this) {
+            if (parkingSlots.tryAcquire()) {
+                totalServedCars++;
+                servedCarsPerGate.put(car.getGateId(), servedCarsPerGate.getOrDefault(car.getGateId(), 0) + 1);
+                car.park();
+            } else {
+                waitingQueue.add(car);
+                System.out.printf("Car %d from Gate %d waiting for a spot.%n", car.getCarId(), car.getGateId());
+            }
+        }
+    }
+
+    public void carLeaves(Car car) { // 20220027
+        parkingSlots.release();
+        System.out.printf("Car %d from Gate %d left after %d units of time. (Parking Status: %d spots occupied)%n", car.getCarId(), car.getGateId(), car.getParkingDuration(), getOccupiedSpots());
+
+        synchronized (this) {
+            if (!waitingQueue.isEmpty()) {
+                Car nextCar = waitingQueue.poll();
+                try {
+                    parkingSlots.acquire();
+                    nextCar.parkAfterWaiting();
+                    totalServedCars++;
+                    servedCarsPerGate.put(nextCar.getGateId(), servedCarsPerGate.getOrDefault(nextCar.getGateId(), 0) + 1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public void reportStatistics() {
+        System.out.printf("Total Cars Served: %d%n", totalServedCars);
+        System.out.printf("Current Cars in Parking: %d%n", getOccupiedSpots());
+        System.out.println("Details:");
+        for (Map.Entry<Integer, Integer> entry : servedCarsPerGate.entrySet()) {
+            System.out.printf("- Gate %d served %d cars.%n", entry.getKey(), entry.getValue());
+        }
     }
 }
 
