@@ -1,7 +1,6 @@
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.lang.InterruptedException;
 
 class Car extends Thread {
     private final int carId;
@@ -35,7 +34,7 @@ class Car extends Thread {
     @Override
     public void run() {
         try {
-            sleep(arrivalTime*1000);
+            sleep(arrivalTime * 1000);
             parkingLot.carArrives(this);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -44,7 +43,7 @@ class Car extends Thread {
 
     public void park() {
         try {
-            sleep(parkingDuration*1000);
+            sleep(parkingDuration * 1000);
             parkingLot.carLeaves(this);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -58,6 +57,10 @@ class Car extends Thread {
     public int getWaitingTime() {
         return waitingTime;
     }
+
+    public void setWaitingTime(int waitingTime) {
+        this.waitingTime = waitingTime;
+    }
 }
 
 class ParkingLot {
@@ -65,6 +68,7 @@ class ParkingLot {
     final Queue<Car> waitingQueue;
     public final int totalSlots;
     private final Map<Integer, Integer> servedCarsPerGate;
+    private PrintStream output; //20220241
     private int totalServedCars;
     public ParkingLot(int totalSlots) {
         this.parkingSlots = new Semaphore(totalSlots, true);
@@ -72,6 +76,12 @@ class ParkingLot {
         this.totalSlots = totalSlots;
         this.servedCarsPerGate = new HashMap<>();
         this.totalServedCars = 0;
+        try { //20220241
+            this.output = new PrintStream(new FileOutputStream("output.txt"));
+            System.setOut(output); // Redirect System.out to output.txt
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
     public int getOccupiedSpots() {
@@ -102,7 +112,8 @@ class ParkingLot {
                 Car nextCar = waitingQueue.poll();
                 try {
                     parkingSlots.acquire();
-                    System.out.printf("Car %d from Gate %d parked. (Parking Status: %d spots occupied)%n", nextCar.getCarId(), nextCar.getGateId(), getOccupiedSpots());
+                    nextCar.setWaitingTime(car.getArrivalTime() + car.getWaitingTime() + car.getParkingDuration() - nextCar.getArrivalTime() + 1);
+                    System.out.printf("Car %d from Gate %d parked after waiting for %d units of time. (Parking Status: %d spots occupied)%n", nextCar.getCarId(), nextCar.getGateId(), nextCar.getWaitingTime(), getOccupiedSpots());
                     nextCar.park();
                     totalServedCars++;
                     servedCarsPerGate.put(nextCar.getGateId(), servedCarsPerGate.getOrDefault(nextCar.getGateId(), 0) + 1);
