@@ -35,8 +35,10 @@ class Car extends Thread {
     @Override
     public void run() {
         try {
-            sleep(arrivalTime*1000);
+            sleep(arrivalTime * 1000);
+            long startTime = System.currentTimeMillis();
             parkingLot.carArrives(this);
+            waitingTime = (int) ((System.currentTimeMillis() - startTime) / 1000); // Calculate waiting time in seconds
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -44,7 +46,7 @@ class Car extends Thread {
 
     public void park() {
         try {
-            sleep(parkingDuration*1000);
+            sleep(parkingDuration * 1000);
             parkingLot.carLeaves(this);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -65,6 +67,7 @@ class ParkingLot {
     final Queue<Car> waitingQueue;
     public final int totalSlots;
     private final Map<Integer, Integer> servedCarsPerGate;
+    private PrintStream output; //20220241
     private int totalServedCars;
     public ParkingLot(int totalSlots) {
         this.parkingSlots = new Semaphore(totalSlots, true);
@@ -72,6 +75,12 @@ class ParkingLot {
         this.totalSlots = totalSlots;
         this.servedCarsPerGate = new HashMap<>();
         this.totalServedCars = 0;
+        try { //20220241
+            this.output = new PrintStream(new FileOutputStream("output.txt"));
+            System.setOut(output); // Redirect System.out to output.txt
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
     public int getOccupiedSpots() {
